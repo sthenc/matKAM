@@ -110,16 +110,6 @@ classdef Signal < handle
             self.weightingWindow = [];
             self.overlap = 0;
             
-            %MDCT properties
-            self.Smdct = [];
-            
-            %CQT properties
-            self.CQTKernelComputationNeeded = 1;
-            self.CQTSparseKernel = [];
-            self.CQTBinsPerOctave = 12;
-            self.CQTMinFreq=97.9999;
-            self.CQTMaxFreq = self.fs/2;
-            self.CQTAlign = 'c';
 
             %Windowing properties
             self.sWin = [];
@@ -135,10 +125,7 @@ classdef Signal < handle
             self.propertiesListeners{end+1} = addlistener(self,'nfft' ,'PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));
             self.propertiesListeners{end+1} = addlistener(self,'overlapRatio','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));
             self.propertiesListeners{end+1} = addlistener(self,'S','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));    
-            self.propertiesListeners{end+1} = addlistener(self,'CQTBinsPerOctave','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));    
-            self.propertiesListeners{end+1} = addlistener(self,'CQTMinFreq','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));    
-            self.propertiesListeners{end+1} = addlistener(self,'CQTMaxFreq','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));    
-            self.propertiesListeners{end+1} = addlistener(self,'CQTAlign','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));    
+            
             
             switch nargin
                 case 0
@@ -306,76 +293,6 @@ classdef Signal < handle
             end
         end
         
-        function Smdct = MDCT(self)
-            self.overlapRatio = 0.5;
-            self.nfft = round(self.nfft/2)*2;
-            N = self.nfft;
-            J = N/2;
-            self.suspendListeners();
-            self.s = [zeros(N,self.nChans); self.s; zeros(2*N,self.nChans)];
-            self.activateListeners();
-            K = floor(size(self.s,1)/J)-1;
-            persistent G
-            if (isempty(G)) || (size(G, 2) ~= N)
-                G = zeros(J,N);
-                win = sqrt(Signal.hann_nonzero(N));
-                for i = 0:J-1,
-                     G(i+1,:) = win.*(sqrt(2/J)*cos((2*i+1)*(2*(0:2*J-1)-J+1)*pi/(4*J)));   
-                end
-            end
-            k = [1:K]';
-            indices = ((k-1)*J*ones(1,2*J) + ones(K,1)*[1:2*J])';
-            for chan = 1:self.nChans
-                temp = self.s(:,chan); 
-                self.Smdct(:,:,chan) = G*temp(indices);
-            end
-            self.nFrames = K;
-            if nargout
-                Smdct = self.Smdct;
-            end
-            self.suspendListeners();
-            self.s = self.s((self.nfft+1):(self.nfft+self.sLength),:);
-            self.activateListeners();
-        end
-        
-        
-   function s = iMDCT(self)
-            %Computes inverse MDCT, puts it in self.s and returns it.
-            s = [];
-            if isempty(self.Smdct)
-                return;
-            end
-            persistent invG
-            J = self.nfft/2;
-            if (isempty(invG)==1) || (size(invG, 1) ~= self.nfft)
-                invG = zeros(J,self.nfft);
-                win = sqrt(Signal.hann_nonzero(self.nfft));
-                for i = 0:J-1,
-                    invG(i+1,:) = win.*(sqrt(2/J)*cos((2*i+1)*(2*(0:2*J-1)-J+1)*pi/(4*J)));
-                end
-                invG = invG';
-            end
-            signal = zeros(J*(self.nFrames+1), self.nChans);
-            for chan = 1:self.nChans
-                for t = 1:self.nFrames
-                    T = reshape(invG*self.Smdct(:,t,chan),self.nfft/2,2);
-                    T2 = [T(:,1:2:end),zeros(J,1)]+[zeros(J,1),T(:,2:2:end)];
-                    signal_frame = T2(:);                    
-                    indx_frame = (1:self.nfft) + (self.nfft/2)*(t-1);
-                    signal(indx_frame,chan) = signal(indx_frame,chan) + signal_frame;                    
-                end;
-            end
-            if ~isempty(self.sLength)
-                signal = signal((self.nfft+1):(self.nfft+self.sLength),:);
-            end;
-
-            self.s = signal;
-            if nargout
-                s = self.s;
-            end
-        end        
-        
-        
         function s = unsplit(self,tempSignal)
             tempLength = self.framesPositions(end)+self.nfft - 1;     
             oldLength = self.sLength;       
@@ -394,57 +311,6 @@ classdef Signal < handle
             s_temp = (s_temp./W);            
             s = s_temp(1:oldLength,:);
         end
-        
-        function Sq = CQT(self)
-                if self.CQTKernelComputationNeeded
-                    self.ComputeSparseKernel;
-                end
-                nfftKernel = size(self.CQTSparseKernel,1);
-
-                %Compute positions and number of STFT frames
-                stepSTFT = self.nfft-self.overlap;
-                framesPositionsSTFT = 1:stepSTFT:self.sLength;
-                framesPositionsSTFT((framesPositionsSTFT + self.nfft -1) > self.sLength ) = [];
-                framesPositionsSTFT(end+1) = framesPositionsSTFT(end) + self.nfft;
-                nFramesSTFT = length(framesPositionsSTFT);                
-                framesCentersSTFT = framesPositionsSTFT + self.nfft/2;
-                
-
-                %Compute CQT frames start so that frames centers are the
-                %same than for the STFT
-                framesPositionsCQT = round(framesCentersSTFT - nfftKernel/2);
-                tempSignal = self.s;
-                if framesPositionsCQT(1) < 1
-                    tempSignal = [zeros(-framesPositionsCQT(1) + 1, self.nChans) ; tempSignal];
-                    framesPositionsCQT = framesPositionsCQT - framesPositionsCQT(1) + 1;
-                end
-                lEnd = (framesPositionsCQT(end) + nfftKernel - 1) - length(tempSignal);
-                finalZeroPadding = zeros(lEnd, self.nChans);
-                tempSignal = [tempSignal ; finalZeroPadding];
-                win = hamming(nfftKernel);
-                win = win(:);
-                
-                %Compute CQT
-                self.Sq = zeros(size(self.CQTSparseKernel,2),nFramesSTFT,self.nChans);
-                disp('Computing CQT...')
-                for index=1:nFramesSTFT
-                    if mod(index, 100) == 1
-                        disp(sprintf('     CQT : %0.2f percents',index/nFramesSTFT*100));
-                    end                        
-                    for index_chan = 1:self.nChans
-                        self.Sq(:,index,index_chan) = self.CQTSparseKernel' ...
-                                                    * fft(tempSignal(framesPositionsCQT(index):framesPositionsCQT(index)+nfftKernel-1,index_chan).*win);
-                    end
-                end
-                disp('finished');
-                
-                if nargout 
-                    Sq = self.Sq;
-                end
-        end
-        
-        
-
         
         function [sWin, sWeights] = split(self,store,initialPos)
             %default value
@@ -552,11 +418,7 @@ classdef Signal < handle
         windowLength, nfft, overlapRatio
         S
         
-        %CQT parameters
-        CQTBinsPerOctave, CQTMinFreq, CQTMaxFreq, CQTAlign
-        
-        %MDCT
-        Smdct
+
     end
     
     properties (SetAccess = private, GetAccess = public, SetObservable=false)
@@ -568,9 +430,7 @@ classdef Signal < handle
         
         %Windowed data
         sWin, sWeights
-        
-        %CQT data
-        Sq
+
     end
     properties (Access = private)
         %Properties listeners
@@ -579,8 +439,7 @@ classdef Signal < handle
         %STFT 
         weightingWindow, overlap
         
-        %CQT
-        CQTKernelComputationNeeded, CQTSparseKernel
+
     end
     methods (Static)
         function handlePropertyEvents(self,src,evnt)
@@ -594,16 +453,13 @@ classdef Signal < handle
                     self.nfft = round(self.fs*self.windowLength/1000);
                     self.nfftUtil = round(self.nfft/2);
                     self.overlap = round(self.nfft*self.overlapRatio); 
-                    self.CQTKernelComputationNeeded = 1;
                 case 'windowLength' 
                     self.nfft = round(self.fs*self.windowLength/1000);
                     self.nfftUtil = round(self.nfft/2);
                     self.overlap = round(self.nfft*self.overlapRatio); 
-                    self.CQTKernelComputationNeeded = 1;
                 case 'nfft' 
                     self.windowLength = (self.nfft*1000/self.fs);
                     self.overlap = round(self.nfft*self.overlapRatio); 
-                    self.CQTKernelComputationNeeded = 1;
                 case 'overlapRatio'
                     self.overlap = round(self.nfft*self.overlapRatio); 
                 case 'S'
@@ -611,14 +467,6 @@ classdef Signal < handle
                     self.nfft = size(self.S,1);
                     self.nfftUtil = round(self.nfft/2);
                     self.nChans = size(self.S,3);
-                case 'CQTBinsPerOctave'
-                    self.CQTKernelComputationNeeded = 1;
-                case 'CQTMinFreq'
-                    self.CQTKernelComputationNeeded = 1;
-                case 'CQTMaxFreq'
-                    self.CQTKernelComputationNeeded = 1;
-                case 'CQTAlign'
-                    self.CQTKernelComputationNeeded = 1;
             end
         
             if self.nfft
@@ -669,41 +517,5 @@ classdef Signal < handle
                 harmonicTemplates(:,index) = F(:)/sum(abs(F));
             end      
         end        
-        function ComputeSparseKernel(self)
-            disp(sprintf('compute CQT kernel on freqs %0.2f to %0.2f with %i bins per octave ...',self.CQTMinFreq,self.CQTMaxFreq,self.CQTBinsPerOctave));
-            thresh = 0.0075;
-            Q = 1 / (2^(1/self.CQTBinsPerOctave)-1);
-            K = ceil(self.CQTBinsPerOctave*log2(self.CQTMaxFreq/self.CQTMinFreq));
-            fftLen = 2^nextpow2(ceil(Q*self.fs/self.CQTMinFreq));
-            self.CQTSparseKernel = [];
-            im = sqrt(-1);
-            tempKernel = zeros(fftLen,1);
-            for k = K:-1:1;
-                len = ceil( Q * self.fs / (self.CQTMinFreq*2^((k-1)/self.CQTBinsPerOctave)));
-                switch self.CQTAlign
-                    case 'l'
-                        tempKernel =[hamming(len,'periodic')/sum(hamming(len,'periodic')); zeros(fftLen-len,1)];
-                        tempKernel = tempKernel.*exp(2*pi*im*Q*(0:fftLen-1)'/len);
-                    case 'c'
-                        if rem(len,2)==1
-                            len=len-1;
-                        end;
-                        index = fftLen/2 - len/2;
-                        tempKernel =[zeros(index,1) ; 
-                                    hamming(len,'periodic')/sum(hamming(len,'periodic')) ;...
-                                    zeros(index,1)];
-                        tempKernel = tempKernel.*exp(2*pi*im*Q*(0:fftLen-1)'/len);
-                    case 'r'
-                        tempKernel =[zeros(fftLen-len,1) ;...
-                                hamming(len,'periodic')/sum(hamming(len,'periodic'))];
-                        tempKernel = tempKernel.*exp(2*pi*im*Q*(0:fftLen-1)'/len);
-                end
-                specKernel = fft(tempKernel);
-                specKernel(find(abs(specKernel)<=thresh))=0;
-                self.CQTSparseKernel = sparse([specKernel self.CQTSparseKernel]);
-            end
-            self.CQTSparseKernel = conj(self.CQTSparseKernel)/fftLen;
-            self.CQTKernelComputationNeeded = 0;
-        end
     end
 end
