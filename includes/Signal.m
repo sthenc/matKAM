@@ -276,23 +276,6 @@ classdef Signal < handle
             end
             copied.activateListeners
         end
-        
-        function stripCanal(self, channel)
-            self.suspendListeners;
-            toKeep = setdiff(1:self.nChans,channel);
-            self.s = self.s(:,toKeep);
-            if ~isempty(self.S)
-                self.S = self.S(:,:,toKeep);
-            end
-            if ~isempty(self.Sq)
-                self.Sq = self.Sq(:,:,toKeep);
-            end
-            if ~isempty(self.sWin)
-                self.sWin = self.sWin(:,:,toKeep);
-            end
-            self.nChans = length(toKeep);
-            self.activateListeners;
-        end
     end
         
     properties (Access=public, SetObservable=true)
