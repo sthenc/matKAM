@@ -115,7 +115,7 @@ classdef Signal < handle
             self.sWin = [];
             self.sWeights = [];
             
-            %Properties listeners
+            %Properties listeners % MATLAB boiler plate, exposed internal properties
             self.propertiesListeners = {};
             self.propertiesListeners{end+1} = addlistener(self,'s','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));
             self.propertiesListeners{end+1} = addlistener(self,'singlePrecision','PostSet',@(src,evnt)Signal.handlePropertyEvents(self,src,evnt));
@@ -169,25 +169,7 @@ classdef Signal < handle
                 S = self.S;
             end
         end
-        
-        function V = specgram(self,nSteps)
-            %Builds Signal spectrogram, 
-            % through averaging nSteps delayed spectrograms
-            if nargin == 1
-                nSteps = 20;
-            end
-            weighted_frames = self.split(0);
-            V = abs(fft(weighted_frames)).^2;  
-            for index = 1:nSteps
-                disp(sprintf('specgram, pass %d / %d',index,nSteps));drawnow
-                weighted_frames = self.split(index);
-                V = V*(1- 1/(index+1)) +1/(index+1)* abs(fft(weighted_frames)).^2;  
-            end
-            if self.singlePrecision
-                V = single(self.S);
-            end
-        end
-        
+      
         function s = iSTFT(self)
             %Computes inverse STFT, puts it in self.s and returns it.
             s = [];
@@ -216,25 +198,6 @@ classdef Signal < handle
             if nargout
                 s = self.s;
             end
-        end
-        
-        function s = unsplit(self,tempSignal)
-            tempLength = self.framesPositions(end)+self.nfft - 1;     
-            oldLength = self.sLength;       
-            
-            s_temp=zeros(tempLength,self.nChans);
-            W = zeros(tempLength,self.nChans);
-
-            for index_frame=1:self.nFrames
-                    for index_chan=1:self.nChans
-                        s_temp(self.framesPositions(index_frame):(self.framesPositions(index_frame)+self.nfft-1),index_chan)= ...
-                            s_temp(self.framesPositions(index_frame):(self.framesPositions(index_frame)+self.nfft-1),index_chan) + tempSignal(:,index_frame,index_chan).*self.weightingWindow;
-                        W(self.framesPositions(index_frame):(self.framesPositions(index_frame)+self.nfft-1),index_chan) = ...
-                            W(self.framesPositions(index_frame):(self.framesPositions(index_frame)+self.nfft-1),index_chan) + self.weightingWindow.^2;
-                    end
-            end
-            s_temp = (s_temp./W);            
-            s = s_temp(1:oldLength,:);
         end
         
         function [sWin, sWeights] = split(self,store,initialPos)
