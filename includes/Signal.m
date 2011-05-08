@@ -145,39 +145,7 @@ classdef Signal < handle
 
             end
         end
-        
-        function SigOut = getOnsets(self,fMin, fMax)
-            %This function returns a vector of length nFrames, containing
-            % an onset detection in the signal between frequencies fMin and
-            % fMax. It uses the complex spectral difference method.
-            if isempty(self.S)
-                self.STFT
-            end
-            
-            IFmin = max(1,round(fMin/self.fs*self.nfft));
-            IFmax = round(min(fMax/2,fMax/self.fs*self.nfft));
-            
-            SigFrame = self.S(IFmin:IFmax,:,:);
-            
-            LenWindow = size(SigFrame,1);
-            nCanaux = size(SigFrame,3);
-            Nbre = size(SigFrame,2);
-            SigOut = zeros(size(SigFrame,2),nCanaux);
-            
-            for canal = 1:nCanaux
-                SigOutInst = zeros(LenWindow,1);
-                CurrPhi = angle(SigFrame(:,1,canal));
-                SigOut(1) = 0;
-                Phi = (unwrap(angle(SigFrame(:,:,canal))));
-                DevPhi = [zeros(LenWindow,2) (Phi(:,3:end) - 2*Phi(:,2:end-1) +...
-                        Phi(:,1:end-2))];
-                    for n = 2:Nbre
-                            SigOutInst = sqrt(abs(SigFrame(:,n-1)).^2 + abs(SigFrame(:,n)).^2 -2*abs(SigFrame(:,n)).*abs(SigFrame(:,n-1)).*cos(DevPhi(:, n)));
-                            SigOut(n,canal) = sum(SigOutInst);
-                    end
-                SigOut(:,canal) = 1/max(abs(SigOut(:,canal))).*SigOut(:,canal);
-            end
-        end  
+          
         %Data loaders
         function LoadFromFile(self, file)
             [self.s, self.fs] = wavread(file);
