@@ -177,50 +177,7 @@ classdef Signal < handle
                     end
                 SigOut(:,canal) = 1/max(abs(SigOut(:,canal))).*SigOut(:,canal);
             end
-        end
-        
-        function [pitchs, pitchCandidates, harmonicTemplates, pitchScores]= mainPitch(self, fMin, fMax,pitchStep,tolerance)
-            %  [pitchs, pitchCandidates, harmonicTemplates, pitchScores]= mainPitch(self, fMin, fMax,pitchStep,tolerance)
-            %  Computes dominant pitch trajectory between fMin and fMax.
-            %  tolerance indicates in Hz the allowed variation of the main
-            %  pitch from one frame to the next.
-            % Returns:
-            % * pitchs: a vector giving the detected pitch in Hz for each
-            % frame.
-            % * pitchCandidates: pitch frequencies used as candidates (Cx1
-            %   vector)
-            % * harmonicTemplates: template spectrum for each candidate
-            %   (FxC) matrix
-            % * pitchScores: matrix indicating the score for each candidate
-            %   and each frame. (CxT) matrix
-            if nargin<5
-                tolerance=10;
-            end
-            if nargin<4
-                pitchStep=1;
-            end
-            if isempty(self.S)
-                self.STFT();
-            end
-            pitchCandidates=fMin:pitchStep:fMax;
-            harmonicTemplates=self.KLGLOTTModel(pitchCandidates).^2;
-            nPitchs = length(pitchCandidates);
-            filterWidth = round(tolerance/pitchStep);
-            pitchScores = zeros(nPitchs, self.nFrames);
-            prevScore= misc.normalize(ones(nPitchs,1));
-            for n = 1:self.nFrames
-                if rem(n,round(self.nFrames/10)) == 1
-                    disp(sprintf('pitch detection: %d%%',round(n/self.nFrames*100)));
-                    drawnow;
-                end
-                likelihoods = misc.normalize(exp(harmonicTemplates'*(abs(self.S(:,n,1)).^2)));
-                pitchScores(:,n) = misc.normalize(misc.normalize(misc.smooth(prevScore,filterWidth)).*likelihoods);
-                prevScore = pitchScores(:,n);
-            end
-            [~, argPitch] = max(pitchScores,[],1);
-            pitchs = pitchCandidates(argPitch);
-        end
-        
+        end  
         %Data loaders
         function LoadFromFile(self, file)
             [self.s, self.fs] = wavread(file);
@@ -497,25 +454,6 @@ classdef Signal < handle
             for index = 1:length(self.propertiesListeners)
                 self.propertiesListeners{index}.Enabled = true;
             end
-        end
-       function harmonicTemplates = KLGLOTTModel(self,pitchs)
-            nPitchs = length(pitchs);
-            harmonicTemplates = zeros(self.nfft,nPitchs);
-            AV = 1;
-            Oq = 0.05;
-            for index = 1:nPitchs
-                %build glottal pulse pattern
-                T = round(self.fs/pitchs(index));
-                HH = zeros(T,1);
-                t = 1:round(T*Oq);
-                HH(t) = ((27*AV)/(4*T*Oq^2)*(t-1).^2-(27*AV)/(4*T^2*Oq^3)*(t-1).^3);
-                nRepeat = ceil(self.nfft/T);
-                H = repmat(HH, nRepeat,1);
-                H = H(1:self.nfft);
-                H = H - mean(H);
-                F = abs(fft(hann(self.nfft).*H,self.nfft));
-                harmonicTemplates(:,index) = F(:)/sum(abs(F));
-            end      
-        end        
+        end     
     end
 end
