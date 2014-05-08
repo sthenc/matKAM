@@ -195,7 +195,7 @@ end
 
 %Computing mixture covariance matrices using spatial covariances
 %as Cxx(f,t,:,:) = sum_j [P(f,t,j)*R(f,:,:)]
-Cxx = sum( bsxfun(@times, permute(R,[1 5 2 3 4]),permute(P,[1 2 4 5 3])),5);
+Cxx = sum( bsxfun (@times,permute(R,[1 5 2 3 4]),permute(P,[1 2 4 5 3])),5);
 for i=1:I
     Cxx(:,:,i,i) = Cxx(:,:,i,i)+regularization;
 end

@@ -49,8 +49,8 @@
 %Where to find the files
 directory = './data';
 %directory = './data';
-files=dir(sprintf('%s/*.wav',directory));
-files = {files(:).name};
+files=dir(sprintf('%s/britney-short.wav',directory));
+files =  {files(:).name};
 Lmax = 180; %length to consider in seconds
 mixdownRepet = 1; %if nonzero, will mix down all non vocal sources
 
