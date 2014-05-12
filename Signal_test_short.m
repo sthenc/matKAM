@@ -2,8 +2,8 @@
 
 infile = 'data\britney-short0.wav';
 outfile = 'output\britney-short0-inverse.wav';
-stftfile = 'test\britney-short0-stft.mat';
-istftfile = 'test\britney-short0-istft.mat';
+stftfile = 'test-orig\britney-short0-stft.mat';
+istftfile = 'test-orig\britney-short0-istft.mat';
 
 
 addpath('includes');
@@ -18,6 +18,8 @@ tic;
 
 sig = Signal(infile);
 
+sig.singlePrecision = 0;
+
 len = size(sig.s,1);
 range = max(1,round(len/2-Lmax*sig.fs/2)):min(len, round(len/2+Lmax*sig.fs/2));
 sig.s = sig.s(range,:);
@@ -28,7 +30,6 @@ fprintf('Computing STFT\n');
 sig.STFT; % transform
 
 stft = sig.S; % output STFT data
-
 
 
 % test inverse transform
