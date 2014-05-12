@@ -28,14 +28,12 @@ fprintf('Computing STFT\n');
 sig.STFT; % transform
 
 stft = sig.S; % output STFT data
-% TODO save to file for comparison
 
 
 
 % test inverse transform
 extractedSig = sig.iSTFT; 
 istft = extractedSig;
-% TODO save for comparison
 
 
 wavwrite(extractedSig, sig.fs, outfile);
