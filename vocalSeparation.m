@@ -49,7 +49,7 @@
 %Where to find the files
 directory = './data';
 %directory = './data';
-files=dir(sprintf('%s/britney-short0.wav',directory));
+files=dir(sprintf('%s/britney.wav',directory));
 files =  {files(:).name};
 Lmax = 180; %length to consider in seconds
 mixdownRepet = 1; %if nonzero, will mix down all non vocal sources
@@ -178,7 +178,7 @@ for ifile = 1:length(files)
     %--------------------------------------------------
     periods = pickpeaks(tempo(nminPeriod:nmaxPeriod),nPeriods,0)+nminPeriod-2;
     if displayPeriods
-        figure(1);
+        figure('units','normalized','outerposition',[0 0 1 1], 1);
         clf
         timePeriods= (0:length(tempo)-1)*hopSize;
         plot(timePeriods(nminPeriod:nmaxPeriod),tempo(nminPeriod:nmaxPeriod),'LineWidth',2);
@@ -301,7 +301,7 @@ for ifile = 1:length(files)
                     subplot(prows,J/prows,j);
                 end
                 %imagesc(log(max(1E-10,S(:,:,j))))
-                imagesc(S(:,:,j).^(0.3/2))
+                imagesc(real(S(:,:,j).^(0.3/2)));
                 colorbar
             end
             drawnow
